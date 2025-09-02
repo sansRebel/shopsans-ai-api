@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ANALYST
+  AGENT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(AGENT)
+  createdAt    DateTime @default(now())
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?   @unique
+  country   String?
+  createdAt DateTime  @default(now())
+  orders    Order[]
+  tickets   Ticket[]
+}
+
+model Product {
+  id           String       @id @default(cuid())
+  sku          String       @unique
+  title        String
+  category     String?
+  priceCents   Int
+  createdAt    DateTime     @default(now())
+  orderItems   OrderItem[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  customerId  String
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  orderDate   DateTime
+  channel     String
+  status      String
+  totalCents  Int
+  items       OrderItem[]
+  tickets     Ticket[]
+
+  @@index([customerId])
+  @@index([orderDate])
+  @@index([status, orderDate])
+}
+
+model OrderItem {
+  orderId        String
+  productId      String
+  qty            Int
+  unitPriceCents Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@id([orderId, productId])
+}
+
+model Ticket {
+  id         String    @id @default(cuid())
+  customerId String
+  orderId    String?
+  subject    String
+  body       String
+  status     String
+  priority   String
+  createdAt  DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  order    Order?   @relation(fields: [orderId], references: [id])
+
+  @@index([customerId])
+  @@index([createdAt])
+}
