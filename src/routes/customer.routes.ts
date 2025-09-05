@@ -17,33 +17,49 @@ customersRouter.get("/", validate(pageQuerySchema, "query"), async (req, res) =>
   const offset = offsetFor(page, pageSize);
 
   // If a search query is provided, use Postgres FTS via $queryRaw for ranked results
-  if (q && q.trim().length > 0) {
+    if (q && q.trim().length > 0) {
     const rows = await prisma.$queryRaw<
-      Array<{ id: string; name: string; email: string | null; country: string | null; createdAt: Date; rank: number }>
+        Array<{ id: string; name: string; email: string | null; country: string | null; createdAt: Date; rank: number }>
     >`
-      WITH t AS (SELECT websearch_to_tsquery('english', ${q}) AS q)
-      SELECT id, name, email, country, "createdAt",
-             ts_rank_cd("searchvec", (SELECT q FROM t)) AS rank
-      FROM "Customer"
-      WHERE "searchvec" @@ (SELECT q FROM t)
-      ORDER BY rank DESC
-      LIMIT ${pageSize} OFFSET ${offset};
+        WITH t AS (SELECT websearch_to_tsquery('english', ${q}) AS q)
+        SELECT id, name, email, country, "createdAt",
+            ts_rank_cd("searchvec", (SELECT q FROM t)) AS rank
+        FROM "Customer"
+        WHERE "searchvec" @@ (SELECT q FROM t)
+        ORDER BY rank DESC
+        LIMIT ${pageSize} OFFSET ${offset};
     `;
-
     const [{ count }] = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      WITH t AS (SELECT websearch_to_tsquery('english', ${q}) AS q)
-      SELECT count(*)::bigint AS count
-      FROM "Customer"
-      WHERE "searchvec" @@ (SELECT q FROM t);
+        WITH t AS (SELECT websearch_to_tsquery('english', ${q}) AS q)
+        SELECT count(*)::bigint AS count
+        FROM "Customer"
+        WHERE "searchvec" @@ (SELECT q FROM t);
     `;
 
-    return res.json({
-      data: rows,
-      page,
-      pageSize,
-      total: Number(count)
-    });
-  }
+    //  Fallback to substring if FTS finds nothing
+    if (rows.length === 0) {
+        const whereLike = {
+        OR: [
+            { name:  { contains: q, mode: "insensitive" as const } },
+            { email: { contains: q, mode: "insensitive" as const } }
+        ]
+        };
+        const [itemsLike, totalLike] = await Promise.all([
+        prisma.customer.findMany({
+            where: whereLike,
+            skip: offset,
+            take: pageSize,
+            orderBy: { [sort]: dir },
+            select: { id: true, name: true, email: true, country: true, createdAt: true }
+        }),
+        prisma.customer.count({ where: whereLike })
+        ]);
+        return res.json({ data: itemsLike, page, pageSize, total: totalLike, note: "fallback:substring" });
+    }
+
+    return res.json({ data: rows, page, pageSize, total: Number(count) });
+    }
+
 
   // No search -> use Prisma for simple ordering
   const [items, total] = await Promise.all([
