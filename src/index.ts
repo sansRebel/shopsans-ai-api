@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import { env } from "./env.js";
 import { authRouter } from "./routes/auth.routes.js"; 
 import { requireAuth, requireRole } from "./middleware/auth.js"; 
+import { customersRouter } from "./routes/customer.routes.js";
 
 const app = express();
 const log = pino({ name: "shopsans-api" });
@@ -30,6 +31,8 @@ app.use("/auth", authRouter);
 app.get("/secure/ping", requireAuth, requireRole("ADMIN","ANALYST","AGENT"), (_req, res) => {
   res.json({ ok: true, when: new Date().toISOString() });
 });
+
+app.use("/customers", requireAuth, customersRouter);
 
 const server = app.listen(env.PORT, () => log.info(`API listening on :${env.PORT}`));
 process.on("SIGTERM", () => server.close());
