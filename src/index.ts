@@ -12,6 +12,7 @@ import { customersRouter } from "./routes/customer.routes.js";
 import { productsRouter } from "./routes/product.routes.js";
 import { ordersRouter } from "./routes/order.routes.js";
 import { searchRouter } from "./routes/search.routes.js";
+import { analyticsRouter } from "./routes/analytics.routes.js";
 
 const app = express();
 const log = pino({ name: "shopsans-api" });
@@ -39,6 +40,7 @@ app.use("/customers", requireAuth, customersRouter);
 app.use("/products", requireAuth, productsRouter);
 app.use("/orders", requireAuth, ordersRouter);
 app.use("/search", searchRouter);
+app.use("/analytics", requireAuth, analyticsRouter);
 
 const server = app.listen(env.PORT, () => log.info(`API listening on :${env.PORT}`));
 process.on("SIGTERM", () => server.close());
